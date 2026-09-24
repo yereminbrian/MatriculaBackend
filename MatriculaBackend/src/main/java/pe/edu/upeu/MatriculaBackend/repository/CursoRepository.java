@@ -12,4 +12,5 @@ public interface CursoRepository extends JpaRepository<Curso, Long>, JpaSpecific
     boolean existsByCodigoIgnoreCase(String codigo);
     boolean existsByCodigoIgnoreCaseAndIdNot(String codigo, Long id);
     List<Curso> findByCarreraId(Long carreraId);
+    boolean existsByCarreraId(Long carreraId);
 }

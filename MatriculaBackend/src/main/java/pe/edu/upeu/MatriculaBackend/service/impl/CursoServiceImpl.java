@@ -35,9 +35,12 @@ public class CursoServiceImpl implements CursoService {
     @Transactional
     public CursoResponseDTO crear(CursoRequestDTO request) {
         Carrera carrera = buscarCarrera(request.getCarreraId());
-        if (cursoRepository.existsByCodigo(request.getCodigo())) {
+
+        // Validación de código único sin distinguir mayúsculas
+        if (cursoRepository.existsByCodigoIgnoreCase(request.getCodigo())) {
             throw conflicto("Ya existe un curso con el código " + request.getCodigo());
         }
+
         Curso curso = new Curso();
         aplicar(curso, request, carrera);
         Curso guardado = cursoRepository.save(curso);
@@ -53,8 +56,10 @@ public class CursoServiceImpl implements CursoService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<CursoResponseDTO> listar() {
-        return cursoRepository.findAll().stream().map(this::toResponse).toList();
+    public List<CursoResponseDTO> listarTodos() { // Renombrado a listarTodos para alinear con CrudService
+        return cursoRepository.findAll().stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Override
@@ -62,9 +67,12 @@ public class CursoServiceImpl implements CursoService {
     public CursoResponseDTO actualizar(Long id, CursoRequestDTO request) {
         Curso curso = buscarEntidad(id);
         Carrera carrera = buscarCarrera(request.getCarreraId());
-        if (cursoRepository.existsByCodigoAndIdNot(request.getCodigo(), id)) {
+
+        // Validar código único ignorando el ID propio
+        if (cursoRepository.existsByCodigoIgnoreCaseAndIdNot(request.getCodigo(), id)) {
             throw conflicto("Ya existe otro curso con el código " + request.getCodigo());
         }
+
         aplicar(curso, request, carrera);
         log.info("Curso actualizado: id={}", id);
         return toResponse(curso);
@@ -74,33 +82,37 @@ public class CursoServiceImpl implements CursoService {
     @Transactional
     public void eliminar(Long id) {
         Curso curso = buscarEntidad(id);
+
+        // Regla de asociación: no se puede eliminar un curso si tiene matrículas asociadas (409)
         if (matriculaRepository.existsDetalleByCursoId(id)) {
             throw conflicto("No se puede eliminar el curso: tiene matrículas asociadas");
         }
+
         cursoRepository.delete(curso);
         log.info("Curso eliminado: id={}", id);
     }
 
-
     @Override
     @Transactional(readOnly = true)
     public List<CursoResponseDTO> listarPorCarrera(Long carreraId) {
-        buscarCarrera(carreraId);
-        return cursoRepository.findByCarreraId(carreraId).stream().map(this::toResponse).toList();
+        buscarCarrera(carreraId); // Lanza 404 si no existe la carrera
+        return cursoRepository.findByCarreraId(carreraId).stream()
+                .map(this::toResponse)
+                .toList();
     }
-
 
     @Override
     @Transactional(readOnly = true)
-    public List<CursoResponseDTO> buscar(String nombre, Long carreraId, Integer ciclo,
-                                         Boolean conVacantes, String orden, String dir) {
+    public List<CursoResponseDTO> buscarCursos(String nombre, Long carreraId, Integer ciclo,
+                                               Boolean conVacantes, String orden, String dir) {
+        // Validar campo de ordenación
         String campo = (orden == null || orden.isBlank()) ? "nombre" : orden.trim().toLowerCase();
         if (!CAMPOS_ORDEN.contains(campo)) {
             throw new IllegalArgumentException(
                     "Campo de orden inválido: '" + orden + "'. Valores permitidos: nombre, creditos, vacantes");
         }
-        if (dir != null && !dir.isBlank()
-                && !dir.equalsIgnoreCase("asc") && !dir.equalsIgnoreCase("desc")) {
+
+        if (dir != null && !dir.isBlank() && !dir.equalsIgnoreCase("asc") && !dir.equalsIgnoreCase("desc")) {
             throw new IllegalArgumentException("Dirección inválida: '" + dir + "'. Valores permitidos: asc, desc");
         }
         Sort.Direction direccion = "desc".equalsIgnoreCase(dir) ? Sort.Direction.DESC : Sort.Direction.ASC;
@@ -124,10 +136,10 @@ public class CursoServiceImpl implements CursoService {
         }
 
         return cursoRepository.findAll(spec, Sort.by(direccion, campo))
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
-
-
 
     private Curso buscarEntidad(Long id) {
         return cursoRepository.findById(id)
@@ -145,7 +157,7 @@ public class CursoServiceImpl implements CursoService {
         curso.setCreditos(r.getCreditos());
         curso.setCiclo(r.getCiclo());
         curso.setVacantes(r.getVacantes());
-        curso.setEstado(r.getEstado() != null ? r.getEstado() : Boolean.TRUE);
+        curso.setEstado(Boolean.TRUE);
         curso.setCarrera(carrera);
     }
 
@@ -158,13 +170,13 @@ public class CursoServiceImpl implements CursoService {
                 .ciclo(c.getCiclo())
                 .vacantes(c.getVacantes())
                 .estado(c.getEstado())
-                .carreraId(c.getCarrera().getId())
-                .carreraNombre(c.getCarrera().getNombre())
+                .carreraId(c.getCarrera() != null ? c.getCarrera().getId() : null)
+                .carreraNombre(c.getCarrera() != null ? c.getCarrera().getNombre() : null)
                 .build();
     }
 
     private ReglaNegocioException conflicto(String mensaje) {
-        log.warn("Regla de negocio: {}", mensaje);
+        log.warn("Regla de negocio violada: {}", mensaje);
         return new ReglaNegocioException(mensaje);
     }
 }

@@ -29,13 +29,15 @@ public class EstudianteServiceImpl implements EstudianteService {
     @Override
     @Transactional
     public EstudianteResponseDTO crear(EstudianteRequestDTO request) {
-        Carrera carrera = buscarCarrera(request.getCarreraId());      // 404 si no existe
+        Carrera carrera = buscarCarrera(request.getCarreraId()); // 404 si no existe
+
         if (estudianteRepository.existsByCodigo(request.getCodigo())) {
             throw conflicto("Ya existe un estudiante con el código " + request.getCodigo());
         }
         if (estudianteRepository.existsByDni(request.getDni())) {
             throw conflicto("Ya existe un estudiante con el DNI " + request.getDni());
         }
+
         Estudiante estudiante = new Estudiante();
         aplicar(estudiante, request, carrera);
         Estudiante guardado = estudianteRepository.save(estudiante);
@@ -51,8 +53,10 @@ public class EstudianteServiceImpl implements EstudianteService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<EstudianteResponseDTO> listar() {
-        return estudianteRepository.findAll().stream().map(this::toResponse).toList();
+    public List<EstudianteResponseDTO> listarTodos() { // Alineado con CrudService
+        return estudianteRepository.findAll().stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Override
@@ -60,12 +64,14 @@ public class EstudianteServiceImpl implements EstudianteService {
     public EstudianteResponseDTO actualizar(Long id, EstudianteRequestDTO request) {
         Estudiante estudiante = buscarEntidad(id);
         Carrera carrera = buscarCarrera(request.getCarreraId());
+
         if (estudianteRepository.existsByCodigoAndIdNot(request.getCodigo(), id)) {
             throw conflicto("Ya existe otro estudiante con el código " + request.getCodigo());
         }
         if (estudianteRepository.existsByDniAndIdNot(request.getDni(), id)) {
             throw conflicto("Ya existe otro estudiante con el DNI " + request.getDni());
         }
+
         aplicar(estudiante, request, carrera);
         log.info("Estudiante actualizado: id={}", id);
         return toResponse(estudiante);
@@ -81,7 +87,6 @@ public class EstudianteServiceImpl implements EstudianteService {
         estudianteRepository.delete(estudiante);
         log.info("Estudiante eliminado: id={}", id);
     }
-
 
     private Estudiante buscarEntidad(Long id) {
         return estudianteRepository.findById(id)
@@ -99,7 +104,7 @@ public class EstudianteServiceImpl implements EstudianteService {
         e.setNombres(r.getNombres());
         e.setApellidos(r.getApellidos());
         e.setEmail(r.getEmail());
-        e.setEstado(r.getEstado() != null ? r.getEstado() : Boolean.TRUE);
+        e.setEstado(Boolean.TRUE); // Por defecto nace activo
         e.setCarrera(carrera);
     }
 
@@ -112,13 +117,13 @@ public class EstudianteServiceImpl implements EstudianteService {
                 .apellidos(e.getApellidos())
                 .email(e.getEmail())
                 .estado(e.getEstado())
-                .carreraId(e.getCarrera().getId())
-                .carreraNombre(e.getCarrera().getNombre())
+                .carreraId(e.getCarrera() != null ? e.getCarrera().getId() : null)
+                .carreraNombre(e.getCarrera() != null ? e.getCarrera().getNombre() : null)
                 .build();
     }
 
     private ReglaNegocioException conflicto(String mensaje) {
-        log.warn("Regla de negocio: {}", mensaje);
+        log.warn("Regla de negocio violada: {}", mensaje);
         return new ReglaNegocioException(mensaje);
     }
 }

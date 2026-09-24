@@ -11,4 +11,6 @@ public interface EstudianteRepository extends JpaRepository<Estudiante, Long> {
     boolean existsByCodigoAndIdNot(String codigo, Long id);
     boolean existsByDni(String dni);
     boolean existsByDniAndIdNot(String dni, Long id);
+    boolean existsByCarreraId(Long carreraId);
+
 }
