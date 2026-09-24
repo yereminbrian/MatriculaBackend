@@ -1,6 +1,7 @@
 package pe.edu.upeu.MatriculaBackend.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,34 +23,28 @@ public class Matricula {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(nullable = false,updatable = false)
     private LocalDateTime fecha;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 6)
+    @Pattern(regexp = "^\\d{4}-[12]$", message = "El periodo debe tener el formato YYYY-1 o YYYY-2")
     private String periodo;
 
-    @ManyToOne
-    @JoinColumn(
-            name="estudiante_id",
-            nullable = false
-    )
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "estudiante_id", nullable = false)
     private Estudiante estudiante;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private EstadoMatricula estado;
 
-    @Column(nullable = false)
+    @Column(name = "total_creditos", precision = 12, scale = 2)
     private Integer totalCreditos;
 
     @Column(nullable = false,precision = 12, scale = 2)
     private BigDecimal montoTotal;
 
-    @OneToMany(
-            mappedBy = "matricula   ",
-            cascade = CascadeType.ALL,
-            orphanRemoval = true
-    )
+    @OneToMany(mappedBy = "matricula", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DetalleMatricula> detalles = new ArrayList<>();
 
     @PrePersist

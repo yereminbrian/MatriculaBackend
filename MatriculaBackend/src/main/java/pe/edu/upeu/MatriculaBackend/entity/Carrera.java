@@ -1,6 +1,7 @@
 package pe.edu.upeu.MatriculaBackend.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -19,10 +20,12 @@ public class Carrera {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 100)
+    @Column(unique = true, length = 100, nullable = false)
+    @Size(min = 3, max = 100, message = "El nombre debe tener entre 3 y 100 caracteres")
     private String nombre;
 
-    @Column(nullable = false, length = 200)
+    @Column(length = 200)
+    @Size(max = 200, message = "La descripción no puede exceder los 200 caracteres")
     private String descripcion;
 
     @Column(nullable = false)
