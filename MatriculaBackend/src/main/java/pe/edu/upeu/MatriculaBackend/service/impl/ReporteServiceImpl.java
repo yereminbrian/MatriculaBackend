@@ -21,19 +21,15 @@ public class ReporteServiceImpl implements ReporteService {
     private final MatriculaRepository matriculaRepository;
     private final CarreraRepository carreraRepository;
 
-    // RF-07: GET /api/v1/reportes/matriculados-por-curso?periodo=&carreraId=
     @Override
     @Transactional(readOnly = true)
     public List<MatriculadosPorCursoDTO> matriculadosPorCurso(String periodo, Long carreraId) {
         log.info("Reporte matriculados por curso: periodo={}, carreraId={}", periodo, carreraId);
 
-        // Referencia inexistente -> 404 (no un reporte vacío engañoso)
         if (carreraId != null && !carreraRepository.existsById(carreraId)) {
             throw new RecursoNoEncontradoException("Carrera no encontrada con id " + carreraId);
         }
 
-        // Agregación en la base de datos (JPQL GROUP BY + proyección),
-        // solo matrículas REGISTRADA; sin bucles sobre findAll()
         List<MatriculadosPorCursoDTO> resultado =
                 matriculaRepository.reporteMatriculadosPorCurso(periodo, EstadoMatricula.REGISTRADA, carreraId);
 

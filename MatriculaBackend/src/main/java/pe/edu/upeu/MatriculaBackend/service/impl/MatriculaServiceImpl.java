@@ -1,7 +1,5 @@
 package pe.edu.upeu.MatriculaBackend.service.impl;
 
-package pe.edu.upeu.MatriculaBackend.service.impl;
-
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -10,7 +8,6 @@ import pe.edu.upeu.MatriculaBackend.dto.DetalleMatriculaRequestDTO;
 import pe.edu.upeu.MatriculaBackend.dto.DetalleMatriculaResponseDTO;
 import pe.edu.upeu.MatriculaBackend.dto.MatriculaRequestDTO;
 import pe.edu.upeu.MatriculaBackend.dto.MatriculaResponseDTO;
-import pe.edu.upeu.MatriculaBackend.dto.MatriculadosPorCursoDTO;
 import pe.edu.upeu.MatriculaBackend.entity.Curso;
 import pe.edu.upeu.MatriculaBackend.entity.DetalleMatricula;
 import pe.edu.upeu.MatriculaBackend.entity.Estudiante;
@@ -35,19 +32,19 @@ import java.util.Set;
 @Service
 public class MatriculaServiceImpl implements MatriculaService {
 
-    private static final int MAX_CREDITOS = 20;                        // RN-04
+    private static final int MAX_CREDITOS = 20;
 
     private final MatriculaRepository matriculaRepository;
     private final EstudianteRepository estudianteRepository;
     private final CursoRepository cursoRepository;
     private final CarreraRepository carreraRepository;
-    private final BigDecimal costoCredito;                             // matricula.costo-credito: 120.00
+    private final BigDecimal costoCredito;
 
     public MatriculaServiceImpl(MatriculaRepository matriculaRepository,
                                 EstudianteRepository estudianteRepository,
                                 CursoRepository cursoRepository,
                                 CarreraRepository carreraRepository,
-                                @Value("${matricula.costo-credito}") BigDecimal costoCredito) {
+                                @Value("${matricula.costo-credito:120.00}") BigDecimal costoCredito) {
         this.matriculaRepository = matriculaRepository;
         this.estudianteRepository = estudianteRepository;
         this.cursoRepository = cursoRepository;
@@ -62,12 +59,12 @@ public class MatriculaServiceImpl implements MatriculaService {
                 .orElseThrow(() -> new RecursoNoEncontradoException(
                         "Estudiante no encontrado con id " + request.getEstudianteId()));
 
-        // RN-01 (estudiante): solo estudiantes activos
+        // RN-01: Solo estudiantes activos
         if (!Boolean.TRUE.equals(estudiante.getEstado())) {
             throw conflicto("RN-01: el estudiante " + estudiante.getCodigo() + " está inactivo");
         }
 
-        // RN-03: una sola matrícula REGISTRADA por estudiante y periodo
+        // RN-03: Una sola matrícula REGISTRADA por estudiante y periodo
         if (matriculaRepository.existsByEstudianteIdAndPeriodoAndEstado(
                 estudiante.getId(), request.getPeriodo(), EstadoMatricula.REGISTRADA)) {
             throw conflicto("RN-03: el estudiante ya tiene una matrícula REGISTRADA en el periodo "
@@ -75,7 +72,7 @@ public class MatriculaServiceImpl implements MatriculaService {
         }
 
         Matricula matricula = new Matricula();
-        matricula.setFecha(LocalDateTime.now());                       // la asigna el servidor
+        matricula.setFecha(LocalDateTime.now());
         matricula.setPeriodo(request.getPeriodo());
         matricula.setEstudiante(estudiante);
         matricula.setEstado(EstadoMatricula.REGISTRADA);
@@ -92,7 +89,7 @@ public class MatriculaServiceImpl implements MatriculaService {
                     .orElseThrow(() -> new RecursoNoEncontradoException(
                             "Curso no encontrado con id " + item.getCursoId()));
 
-
+            // RN-01: Curso activo y pertenencia a la carrera del alumno
             if (!Boolean.TRUE.equals(curso.getEstado())) {
                 throw conflicto("RN-01: el curso " + curso.getCodigo() + " está inactivo");
             }
@@ -101,20 +98,19 @@ public class MatriculaServiceImpl implements MatriculaService {
                         + " no pertenece a la carrera del estudiante");
             }
 
-
+            // RN-04: Límite de créditos
             int nuevoTotal = totalCreditos + curso.getCreditos();
             if (nuevoTotal > MAX_CREDITOS) {
                 throw conflicto("RN-04: la matrícula superaría los " + MAX_CREDITOS
                         + " créditos (" + nuevoTotal + ")");
             }
 
-
+            // RN-02: Disponibilidad de vacantes
             if (curso.getVacantes() <= 0) {
                 throw conflicto("RN-02: el curso " + curso.getCodigo() + " no tiene vacantes");
             }
 
             curso.setVacantes(curso.getVacantes() - 1);
-
 
             BigDecimal costo = calcularCosto(curso.getCreditos());
             DetalleMatricula detalle = new DetalleMatricula();
@@ -130,7 +126,7 @@ public class MatriculaServiceImpl implements MatriculaService {
         matricula.setTotalCreditos(totalCreditos);
         matricula.setMontoTotal(montoTotal.setScale(2, RoundingMode.HALF_UP));
 
-        Matricula guardada = matriculaRepository.save(matricula);      // cascade ALL guarda los detalles
+        Matricula guardada = matriculaRepository.save(matricula);
         log.info("Matrícula registrada: id={}, estudianteId={}, periodo={}, créditos={}, monto={}",
                 guardada.getId(), estudiante.getId(), guardada.getPeriodo(),
                 guardada.getTotalCreditos(), guardada.getMontoTotal());
@@ -145,8 +141,22 @@ public class MatriculaServiceImpl implements MatriculaService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<MatriculaResponseDTO> listar() {
-        return matriculaRepository.findAll().stream().map(this::toResponse).toList();
+    public List<MatriculaResponseDTO> listarTodos() {
+        return matriculaRepository.findAll().stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public MatriculaResponseDTO actualizar(Long id, MatriculaRequestDTO request) {
+        throw conflicto("Las matrículas no se pueden actualizar directamente, use el endpoint de anulación");
+    }
+
+    @Override
+    @Transactional
+    public void eliminar(Long id) {
+        throw conflicto("Las matrículas no se eliminan físicamente, deben ser anuladas con PATCH /api/v1/matriculas/{id}/anular");
     }
 
     // RF-05: PATCH /api/v1/matriculas/{id}/anular
@@ -159,30 +169,17 @@ public class MatriculaServiceImpl implements MatriculaService {
         }
         for (DetalleMatricula detalle : matricula.getDetalles()) {
             Curso curso = detalle.getCurso();
-            curso.setVacantes(curso.getVacantes() + 1);                // devuelve la vacante
+            curso.setVacantes(curso.getVacantes() + 1);
         }
         matricula.setEstado(EstadoMatricula.ANULADA);
         log.info("Matrícula anulada: id={}, vacantes devueltas={}", id, matricula.getDetalles().size());
         return toResponse(matricula);
     }
 
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<MatriculadosPorCursoDTO> reporteMatriculadosPorCurso(String periodo, Long carreraId) {
-        log.info("Reporte matriculados por curso: periodo={}, carreraId={}", periodo, carreraId);
-        if (carreraId != null && !carreraRepository.existsById(carreraId)) {
-            throw new RecursoNoEncontradoException("Carrera no encontrada con id " + carreraId);
-        }
-        return matriculaRepository.reporteMatriculadosPorCurso(periodo, EstadoMatricula.REGISTRADA, carreraId);
-    }
-
-
     private Matricula buscarEntidad(Long id) {
         return matriculaRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Matrícula no encontrada con id " + id));
     }
-
 
     private BigDecimal calcularCosto(int creditos) {
         return costoCredito.multiply(BigDecimal.valueOf(creditos)).setScale(2, RoundingMode.HALF_UP);
@@ -199,12 +196,14 @@ public class MatriculaServiceImpl implements MatriculaService {
                         .costo(d.getCosto())
                         .build())
                 .toList();
+
         return MatriculaResponseDTO.builder()
                 .id(m.getId())
                 .fecha(m.getFecha())
                 .periodo(m.getPeriodo())
                 .estudianteId(m.getEstudiante().getId())
-                .estudianteNombre(m.getEstudiante().getNombres() + " " + m.getEstudiante().getApellidos())
+                .estudianteCodigo(m.getEstudiante().getCodigo())
+                .estudianteNombreCompleto(m.getEstudiante().getNombres() + " " + m.getEstudiante().getApellidos())
                 .estado(m.getEstado())
                 .totalCreditos(m.getTotalCreditos())
                 .montoTotal(m.getMontoTotal())
@@ -213,7 +212,7 @@ public class MatriculaServiceImpl implements MatriculaService {
     }
 
     private ReglaNegocioException conflicto(String mensaje) {
-        log.warn("Regla de negocio: {}", mensaje);
+        log.warn("Regla de negocio violada: {}", mensaje);
         return new ReglaNegocioException(mensaje);
     }
 }
